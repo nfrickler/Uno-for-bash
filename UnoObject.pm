@@ -8,33 +8,24 @@ require Exporter;
 our @ISA = qw(Exporter);
 our @EXPORT = qw();
 
-
-# ######################### player/game handling ######################## #
-
-# init all_cards
-sub initCards {
-	my ($self, $gametype) = @_;
-	$gametype //= 0;
-	$self->{'all_cards'} = {};
-
-	my $i;
-	my $curindex = 0;
-	my @c_colors = ("y", "r", "g", "b");
-	my @c_nums = ("1", "2", "3", "4", "5", "6", "7", "8", "9", "a", "r", "z");
-	for (@c_colors) {
-		my $curcolor = $_;
-		$self->{'all_cards'}{($curindex++)} = $curcolor."0";
-		for (@c_nums) {
-			$self->{'all_cards'}{($curindex++)} = $curcolor.$_;
-			$self->{'all_cards'}{($curindex++)} = $curcolor.$_;
-		}
+# init
+my (%all_cards, $i);
+my $curindex = 0;
+my @c_colors = ("y", "r", "g", "b");
+my @c_nums = ("1", "2", "3", "4", "5", "6", "7", "8", "9", "a", "r", "z");
+for (@c_colors) {
+	my $curcolor = $_;
+	$all_cards{($curindex++)} = $curcolor."0";
+	for (@c_nums) {
+		$all_cards{($curindex++)} = $curcolor.$_;
+		$all_cards{($curindex++)} = $curcolor.$_;
 	}
-	for ($i = 4; $i > 0; $i--) {
-		$self->{'all_cards'}{($curindex++)} = "sz";
-	}
-	for ($i = 4; $i > 0; $i--) {
-		$self->{'all_cards'}{($curindex++)} = "sf";
-	}
+}
+for ($i = 4; $i > 0; $i--) {
+	$all_cards{($curindex++)} = "sz";
+}
+for ($i = 4; $i > 0; $i--) {
+	$all_cards{($curindex++)} = "sf";
 }
 
 # new
@@ -45,13 +36,11 @@ sub new {
 				current => {player => undef,
 							color => undef,
 							direction => 1,
-							drawsum => 0,
-							can_pass => 0,
+							drawsum => 0
 							},
 				c_available => [],
 				c_set => [],
-				Server => undef,
-				all_cards => {},
+				Server => undef
 	};
 	bless $obj, 'UnoObject';
 	return $obj;
@@ -106,19 +95,10 @@ sub deletePlayer {
 # startGame
 # start new game
 sub startGame {
-	my ($self, $gametype) = @_;
+	my $self = shift;
 
-	# init cards
-	$self->initCards($gametype);
-	$self->{'c_available'} = $self->mixCards(keys %{$self->{'all_cards'}});
-
-	# share all_cards with players
-	my $all_cards_amount = scalar(keys %{$self->{'all_cards'}});
-	my $share_cards = "";
-	for my $key (0 .. ($all_cards_amount - 1)) {
-		$share_cards.= "|".$self->{'all_cards'}{$key};
-	}
-	$self->{'Server'}->printToAll(substr($share_cards, 1));
+	# mix cards
+	$self->{'c_available'} = $self->mixCards(keys %all_cards);
 
 	# give cards to players
 	for my $key (keys %{$self->{'player'}}) {
@@ -127,7 +107,7 @@ sub startGame {
 
 	# get start-card
 	my $alarm = 9;
-	until (scalar(@{$self->{'c_set'}}) > 0 and $self->{'all_cards'}{@{$self->{'c_set'}}[0]} !~ /^s/) {
+	until (scalar(@{$self->{'c_set'}}) > 0 and $all_cards{@{$self->{'c_set'}}[0]} !~ /^s/) {
 		push @{$self->{'c_set'}}, shift @{$self->{'c_available'}};
 		$alarm++;
 		die "Could not get valid start-card!\n" if $alarm < 1;
@@ -179,8 +159,13 @@ sub sendUpdate {
 	return 1;
 }
 
-
-# ########################### game itself ####### ######################## #
+# mixCards
+# mix cards
+sub mixCards {
+	my $self = shift;
+	my @arr = shuffle(@_);
+	return \@arr;
+}
 
 # drawCards
 # draw cards (one or amount of drawsum)
@@ -202,7 +187,6 @@ sub drawCards {
 	# give cards to current player
 	$self->giveCards($self->{'current'}{'player'}, $amount);
 
-	$self->{'current'}{'can_pass'} = 1;
 	return 1;
 }
 
@@ -239,7 +223,7 @@ sub setCard {
 
 	# validate input
 	unless ($self->{'player'}{$player}
-			and $self->{'all_cards'}{$card}) {
+			and $all_cards{$card}) {
 		# player or card do not exist!
 
 		return 0;
@@ -256,19 +240,10 @@ sub setCard {
 		# draw new card
 		push @{$self->{'player'}{$player}{'newcards'}}, $card if ($self->isPlayerCard($player, $card));
 		$self->deletePlayerCard($player, $card);
-
-		# is current player and has to draw?
-		if ($player eq $self->{'current'}{'player'}
-				and $self->{'current'}{'drawsum'} > 0) {
-			$self->drawCards($player);
-			return 0;
-		}
+		$self->drawCards($player);
 
 		# is current player?
 		return 0 if ($player ne $self->{'current'}{'player'});
-
-		# give one extra card
-		$self->giveCards($player, 1);
 		return 1;
 	}
 	print "Card ok\n";
@@ -282,23 +257,23 @@ sub setCard {
 	$self->{'current'}{'color'} = '';
 
 	# handle actions following card
-	if ($self->{'all_cards'}{$card} =~ /a$/i) {
+	if ($all_cards{$card} =~ /a$/i) {
 		print "Skip next player\n";
 		$self->a_skipNext();
 	}
-	elsif ($self->{'all_cards'}{$card} =~ /r$/i) {
+	elsif ($all_cards{$card} =~ /r$/i) {
 		print "Change direction\n";
 		$self->a_retour();
 	}
-	elsif ($self->{'all_cards'}{$card} =~ /sz$/i) {
+	elsif ($all_cards{$card} =~ /sz$/i) {
 		print "4 more cards to draw\n";
 		$self->a_drawFour($color);
 	}
-	elsif ($self->{'all_cards'}{$card} =~ /z$/i) {
+	elsif ($all_cards{$card} =~ /z$/i) {
 		print "2 more cards to draw\n";
 		$self->a_drawTwo();
 	}
-	elsif ($self->{'all_cards'}{$card} =~ /f$/i) {
+	elsif ($all_cards{$card} =~ /f$/i) {
 		print "What color do you want?\n";
 		$self->a_chooseColor($color);
 	}
@@ -306,23 +281,21 @@ sub setCard {
 	return 1;
 }
 
-# pass to next player
-sub passToNext {
-	my ($self, $player) = @_;
+# deletePlayerCard
+# delete card from player
+sub deletePlayerCard {
+	my ($self, $player, $card) = @_;
 
-	# is current player?
-	if ($self->{'current'}{'player'} ne $player) {
-		$self->{'Server'}->printTo($player, "# It's not your turn!");
-		return 0;
+	# delete card
+	my @allmycards = @{$self->{'player'}{$player}{'cards'}};
+	for (0 .. $#allmycards) {
+		next unless defined $allmycards[$_];
+		if ($allmycards[$_] == $card) {
+			delete ${$self->{'player'}{$player}{'cards'}}[$_]; 
+			last;
+		}
 	}
 
-	# check, if player can pass
-	unless ($self->{'current'}{'can_pass'}) {
-		$self->{'Server'}->printTo($player, "# You can't pass to next player!");
-		return 0;
-	}
-
-	$self->{'Server'}->printToAll("# '$player' has passed...");
 	return 1;
 }
 
@@ -346,7 +319,6 @@ sub nextPlayer {
 
 	# go to next player
 	$self->{'current'}{'player'} = ($self->{'current'}{'direction'} > 0) ? $self->{'player'}{$self->{'current'}{'player'}}{'next'} : $self->{'player'}{$self->{'current'}{'player'}}{'prev'};
-	$self->{'current'}{'can_pass'} = 0;
 
 	print "Go on with next player\n";
 	return 1;
@@ -366,40 +338,52 @@ sub canSetCard {
 
 		# has to draw?
 		if ($self->{'current'}{'drawsum'}) {
-			return 1 if ($self->{'all_cards'}{@{$self->{'c_set'}}[0]} =~ /^sz/i
-						and $self->{'all_cards'}{$card} =~ /^sz/i);
-			return 1 if ($self->{'all_cards'}{$card} =~ /z$/);
+			return 1 if ($all_cards{@{$self->{'c_set'}}[0]} =~ /^sz/i
+						and $all_cards{$card} =~ /^sz/i);
+			return 1 if ($all_cards{$card} =~ /z$/);
 			print "Either another +2/+4 or draw!\n";
 			return 0;
 		}
 
 		# is special card?
-		return 1 if ($self->{'all_cards'}{$card} =~ /^s/i);
+		return 1 if ($all_cards{$card} =~ /^s/i);
 
 		# is same color
-		my $color = substr($self->{'all_cards'}{$self->{'c_set'}[0]},0,1);
-		return 1 if ($self->{'all_cards'}{$card} =~ /^$color/);
+		my $color = substr($all_cards{$self->{'c_set'}[0]},0,1);
+		return 1 if ($all_cards{$card} =~ /^$color/);
 
 		# is color wished by last special-card?
 		my $curcolor = $self->{'current'}{'color'};
-		return 1 if ($self->{'all_cards'}{@{$self->{'c_set'}}[0]} =~ /^s/
-						and $self->{'all_cards'}{$card} =~ /^$curcolor/);
+		return 1 if ($all_cards{@{$self->{'c_set'}}[0]} =~ /^s/
+						and $all_cards{$card} =~ /^$curcolor/);
 
 		# is same number?
-		my $type = substr($self->{'all_cards'}{$self->{'c_set'}[0]},1,1);
-		return 1 if ($self->{'all_cards'}{$card} =~ /$type$/);
+		my $type = substr($all_cards{$self->{'c_set'}[0]},1,1);
+		return 1 if ($all_cards{$card} =~ /$type$/);
 
 	} else {
 		# its not players turn...
 
 		# check, if cards are identical
-		if ($self->{'all_cards'}{$self->{'c_set'}[0]} eq $self->{'all_cards'}{$card}) {
+		if ($all_cards{$self->{'c_set'}[0]} eq $all_cards{$card}) {
 			return 1;
 		}
 	}
 	return 0;
 }
 
+# isPlayerCard
+# is card belonging to player?
+sub isPlayerCard {
+	my ($self, $player, $card) = @_;
+
+	# go through all cards
+	for (@{$self->{'player'}{$player}{'cards'}}) {
+		return 1 if (defined $_ and $_ == $card);
+	}
+
+	return 0;
+}
 
 # a_skipNext
 # skip next player
@@ -471,7 +455,9 @@ sub sayUno {
 	my ($self, $player) = @_;
 
 	# has only 1 card?
-	unless ($self->getCardAmount($player) == 1) {
+	unless ($self->getCardAmount($player) == 1
+			or ($self->getCardAmount($player) == 2
+	   			and $self->{'current'}{'player'} eq $player)) {
 		$self->giveCards($player, 1);
 		$self->{'Server'}->printToAll("#'$player' have said 'uno' at the wrong time");	
 		return 0;
@@ -507,48 +493,6 @@ sub checkUno {
 	return 1;
 }
 
-
-# ########################### helper functions ###################### #
-
-# mixCards
-# mix cards
-sub mixCards {
-	my $self = shift;
-	my @arr = shuffle(@_);
-	return \@arr;
-}
-
-# deletePlayerCard
-# delete card from player
-sub deletePlayerCard {
-	my ($self, $player, $card) = @_;
-
-	# delete card
-	my @allmycards = @{$self->{'player'}{$player}{'cards'}};
-	for (0 .. $#allmycards) {
-		next unless defined $allmycards[$_];
-		if ($allmycards[$_] == $card) {
-			delete ${$self->{'player'}{$player}{'cards'}}[$_]; 
-			last;
-		}
-	}
-
-	return 1;
-}
-
-# isPlayerCard
-# is card belonging to player?
-sub isPlayerCard {
-	my ($self, $player, $card) = @_;
-
-	# go through all cards
-	for (@{$self->{'player'}{$player}{'cards'}}) {
-		return 1 if (defined $_ and $_ == $card);
-	}
-
-	return 0;
-}
-
 # getCardAmount
 # get amount of cards of one player
 sub getCardAmount {
@@ -566,13 +510,13 @@ sub getCardAmount {
 sub getCardPoints {
 	my ($self, $card) = @_;
 
-	return 20 if $self->{'all_cards'}{$card} =~ /r$/;
-	return 20 if $self->{'all_cards'}{$card} =~ /a$/;
-	return 20 if $self->{'all_cards'}{$card} =~ /z$/;
-	return 50 if $self->{'all_cards'}{$card} =~ /^sf$/;
-	return 70 if $self->{'all_cards'}{$card} =~ /^sz$/;
+	return 20 if $all_cards{$card} =~ /r$/;
+	return 20 if $all_cards{$card} =~ /a$/;
+	return 20 if $all_cards{$card} =~ /z$/;
+	return 50 if $all_cards{$card} =~ /^sf$/;
+	return 70 if $all_cards{$card} =~ /^sz$/;
 
-	return int(substr($self->{'all_cards'}{$card}, 1));
+	return int(substr($all_cards{$card}, 1));
 }
 
 # quitGame

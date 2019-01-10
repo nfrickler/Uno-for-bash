@@ -2,6 +2,10 @@
 use strict;
 use warnings;
 
+# Load packages from local directory
+use File::Basename;
+use lib dirname (__FILE__);
+
 package uno_server;
 use ServerObject;
 use UnoObject;
@@ -29,20 +33,20 @@ $Server->wait();
 sub phase1 {
 	my ($name, $input) = @_;
 
-	# set as admin player? 
+	# set as admin player?
 	unless ($admin_player) {
 		$admin_player = $name;
-		$Server->printTo($name, "# You are the admin.");
+		$Server->printTo($name, "#You are the admin.");
 	}
 
 	# return if input=name
 	if ($input =~ /^name=/) {
-		$Server->printToAll("# Player '$name' has joined.");
+		$Server->printToAll("#Player '$name' has joined.");
 	}
 
 	# left?
 	if ($input =~ /^left/) {
-		$Server->printToAll("# Player '$name' has left.");
+		$Server->printToAll("#Player '$name' has left.");
 	}
 
 	# start, if enough player have connected
@@ -53,7 +57,7 @@ sub phase1 {
 	}
 
 	# start game?
-	return 100 if (($name eq $admin_player or $name eq "std") and $input =~ m/^start$/);
+	return 100 if ($name eq $admin_player and $input =~ m/^start$/);
 
 	return 1;
 }
@@ -91,9 +95,6 @@ sub phase3 {
 	my ($player, $input) = @_;
 	my $is_valid = 0;
 
-	# skip std
-	return 1 if ($player eq "std");
-
 	# get color (wished via special-card)
 	my $color;
 	$color = $2 if ($input =~ s/^(.*),(.*)$/$1/);
@@ -110,12 +111,7 @@ sub phase3 {
 
 	# draw cards?
 	elsif ($input =~ /^draw/) {
-		$Uno->drawCards($player);
-	}
-	
-	# pass?
-	elsif ($input =~ /^pass/) {
-		$is_valid = $Uno->passToNext($player);
+		$is_valid = $Uno->drawCards($player);
 	}
 
 	# uno?

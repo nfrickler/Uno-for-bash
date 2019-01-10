@@ -43,15 +43,6 @@ sub startSocket {
 	$self->{'to_read'}->add($self->{'socket'});
 	$self->{'to_write'}->add($self->{'socket'});
 
-    # add stdin/out to clients
-    STDIN->blocking(0);
-    $self->{'clients'}{\*STDIN} = { name => "std",
-                        buffer => '', 
-                        buffer_out => '', 
-                        wait_for_exit => 0,
-                        handle => \*STDIN};
-    $self->{'to_read'}->add(\*STDIN);
-
 	return 1;
 }
 
@@ -241,7 +232,6 @@ sub printToAll {
 	my ($self, $input) = @_;
 
 	for my $curhndl (keys %{$self->{'clients'}}) {
-		next if $curhndl eq $self->name2hndl("std");
 		next if $self->{'clients'}{$curhndl}{'wait_for_exit'};
 		$self->addToBuffer($curhndl, $input);
 	}
@@ -268,7 +258,6 @@ sub getAllNames {
 
 	my @names;
 	for my $curhndl (keys %{$self->{'clients'}}) {
-		next if $curhndl eq $self->name2hndl("std");
 		next unless ($self->{'clients'}{$curhndl}{'name'});
 		push @names, $self->{'clients'}{$curhndl}{'name'};
 	}
