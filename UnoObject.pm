@@ -198,9 +198,10 @@ sub giveCards {
 
 	# have to mix cards first?
 	unless ($number <= scalar(@{$self->{'c_available'}})) {
+		print "Shuffle cards";
 		my $topcard = shift @{$self->{'c_set'}};
 		push @{$self->{'c_available'}}, @{$self->{'c_set'}};
-		$self->{'c_set'} = ($topcard);
+		@{$self->{'c_set'}} = ($topcard);
 	}
 
 	# give cards
